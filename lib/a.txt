@@ -1,0 +1,300 @@
+import 'package:Gauth/services/firebase_services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+
+class ShowComment extends StatefulWidget {
+  final String productId;
+  ShowComment({this.productId});
+  @override
+  _ShowCommentState createState() => _ShowCommentState();
+}
+
+class _ShowCommentState extends State<ShowComment> {
+  FirebaseServices _firebaseServices = FirebaseServices();
+
+  final CollectionReference _usersRef =
+      FirebaseFirestore.instance.collection("users");
+
+  final User _user = FirebaseAuth.instance.currentUser;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        decoration: BoxDecoration(color: Colors.white),
+        child: Stack(
+          children: [
+            FutureBuilder<QuerySnapshot>(
+              future: _firebaseServices.blogsRef
+                  .doc(widget.productId)
+                  .collection("Comments")
+                  .get(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Scaffold(
+                    body: Center(
+                      child: Text('Error: ${snapshot.error}'),
+                    ),
+                  );
+                }
+
+                if (snapshot.connectionState == ConnectionState.done) {
+                  // display data in listvie
+                  return ListView(
+                    scrollDirection: Axis.vertical,
+                    shrinkWrap: true,
+                    padding: EdgeInsets.only(bottom: 30.0),
+                    children: snapshot.data.docs.map((document) {
+                      return FutureBuilder(
+                          future:
+                              _firebaseServices.blogsRef.doc(document.id).get(),
+                          builder: (context, blogsRef) {
+                            if (blogsRef.hasError) {
+                              return Container(
+                                child: Center(
+                                  child: Text('${blogsRef.error}'),
+                                ),
+                              );
+                            }
+
+                            if (blogsRef.connectionState ==
+                                ConnectionState.done) {
+                              Map _blogMap = blogsRef.data.data();
+
+                              return Container(
+                                margin: EdgeInsets.symmetric(horizontal: 8.0),
+                                decoration: BoxDecoration(
+                                  color: Color(0xfff2f2f2),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: Color(0xffffffff),
+                                      width: 2.5,
+                                    ),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.only(
+                                          left: 16.0,
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${document.data()['commentUserId']}',
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                                fontSize: 12.0,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4.0),
+                                            Text(
+                                              '${document.data()['commentBody']}',
+                                              style: TextStyle(
+                                                color: Colors.black,
+                                                fontSize: 16.0,
+                                              ),
+                                            ),
+
+                                            // Text(
+                                            //   "${_blogMap['images']}",
+                                            //   style: TextStyle(
+                                            //     fontSize: 3.0,
+                                            //     color: Colors.black,
+                                            //     fontWeight: FontWeight.w600,
+                                            //   ),
+                                            // ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return Container(
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          });
+                    }).toList(),
+                  );
+                }
+
+                return Center(
+                  child: CircularProgressIndicator(),
+                );
+              },
+            ),
+          ],
+        ));
+  }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import 'package:Quiz/models/question_model.dart';
+import 'package:Quiz/services/database.dart';
+import 'package:Quiz/widgets/quiz_play_widget.dart';
+import 'package:Quiz/widgets/widgets.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+
+class PlayQuiz extends StatefulWidget {
+  final String quizId;
+  PlayQuiz({this.quizId});
+  @override
+  _PlayQuizState createState() => _PlayQuizState();
+}
+
+int total = 0;
+int _correct = 0;
+int _incorrect = 0;
+int _notAttempted = 0;
+
+class _PlayQuizState extends State<PlayQuiz> {
+  DataBaseService dataBaseService = new DataBaseService();
+  QuerySnapshot questionsSnapshot;
+
+  QuestionModel getQuestionModelFromDatasnapshot(
+      DocumentSnapshot questionSnapshot) {
+    QuestionModel questionModel = new QuestionModel();
+
+    questionModel.question = questionSnapshot.data()['question'];
+
+    List<String> options = [
+      questionSnapshot.data()['option1'],
+      questionSnapshot.data()['option2'],
+      questionSnapshot.data()['option3'],
+      questionSnapshot.data()['option4'],
+    ];
+
+    options.shuffle();
+
+    questionModel.option1 = options[0];
+    questionModel.option2 = options[1];
+    questionModel.option3 = options[2];
+    questionModel.option4 = options[3];
+    questionModel.correctOption = questionSnapshot.data()['option1'];
+    questionModel.answered = false;
+
+    return questionModel;
+  }
+
+  @override
+  void initState() {
+    dataBaseService.getQuizData(widget.quizId).then((value) {
+      questionsSnapshot = value;
+      _notAttempted = 0;
+      _correct = 0;
+      _incorrect = 0;
+      total = questionsSnapshot.docs.length;
+
+      print("$total this is total");
+    });
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Center(child: appBar(context)),
+        backgroundColor: Colors.transparent,
+        elevation: 0.0,
+        iconTheme: IconThemeData(color: Colors.black87),
+      ),
+      body: Container(
+        child: Column(
+          children: [
+            questionsSnapshot.docs == null
+                ? Container()
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: ClampingScrollPhysics(),
+                    itemCount: questionsSnapshot.docs.length,
+                    itemBuilder: (context, index) {
+                      return QuizPlayTile(
+                        questionModel: getQuestionModelFromDatasnapshot(
+                            questionsSnapshot.docs[index]),
+                        index: index,
+                      );
+                    },
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class QuizPlayTile extends StatefulWidget {
+  final QuestionModel questionModel;
+  final int index;
+  QuizPlayTile({
+    this.questionModel,
+    this.index,
+  });
+
+  @override
+  _QuizPlayTileState createState() => _QuizPlayTileState();
+}
+
+class _QuizPlayTileState extends State<QuizPlayTile> {
+  String optionSelected = "";
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      child: Column(
+        children: [
+          Text(widget.questionModel.question),
+          SizedBox(height: 4),
+          OptionTile(
+            correctAnswer: widget.questionModel.option1,
+            description: widget.questionModel.option1,
+            option: "A",
+            optionSelected: optionSelected,
+          ),
+          SizedBox(height: 4),
+          OptionTile(
+            correctAnswer: widget.questionModel.option1,
+            description: widget.questionModel.option2,
+            option: "B",
+            optionSelected: optionSelected,
+          ),
+          SizedBox(height: 4),
+          OptionTile(
+            correctAnswer: widget.questionModel.option1,
+            description: widget.questionModel.option3,
+            option: "C",
+            optionSelected: optionSelected,
+          ),
+          SizedBox(height: 4),
+          OptionTile(
+            correctAnswer: widget.questionModel.option1,
+            description: widget.questionModel.option4,
+            option: "D",
+            optionSelected: optionSelected,
+          ),
+        ],
+      ),
+    );
+  }
+}
